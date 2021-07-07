@@ -77,15 +77,16 @@ class ReflexAgent(Agent):
         # features
         f0 = successorGameState.getScore()  # score in successor state
         f1 = [manhattanDistance(newPos,ghostState.configuration.pos) for ghostState in newGhostStates] # manhattan distances to ghosts
-        f2 = [1/(manhattanDistance(newPos,foodPos)+1) for foodPos in newFood.asList()] # inverse manhattan distances to food
+        f2 = [manhattanDistance(newPos,foodPos) for foodPos in newFood.asList()] # manhattan distances to food
+        f2.append(0)
 
         # Avoid ghosts that are near, but favor eating them when it seems likely that they'll be reached in time
         try:
-            f3 = [-10/f1[i] if newScaredTimes[i] < f1[i] else 200*(newScaredTimes[i]-f1[i])/newScaredTimes[i] for i in range(len(newGhostStates))]
+            f3 = [-1/f1[i] if newScaredTimes[i] < f1[i] else 200*(newScaredTimes[i]-f1[i])/newScaredTimes[i] for i in range(len(newGhostStates))]
         except ZeroDivisionError:
-            f3 = [-9999999]
-        finally:
-            return f0 + max(f2) + sum(f3)
+            return -9999999
+
+        return f0 - min(f2) + min(f3)
 
         # naive implementation just considers the score of the game in each successor
         #return successorGameState.getScore()
