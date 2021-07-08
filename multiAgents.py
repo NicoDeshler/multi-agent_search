@@ -74,21 +74,50 @@ class ReflexAgent(Agent):
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        # features
-        f0 = successorGameState.getScore()  # score in successor state
-        f1 = [manhattanDistance(newPos,ghostState.configuration.pos) for ghostState in newGhostStates] # manhattan distances to ghosts
-        f2 = [manhattanDistance(newPos,foodPos) for foodPos in newFood.asList()] # manhattan distances to food
-        f2.append(0)
+        point_gain = successorGameState.getScore() - currentGameState.getScore()  # points gained in successor state compared to current state
+        curPos = currentGameState.getPacmanPosition()       # current pacman position
+        curGhostStates = currentGameState.getGhostStates()  # current ghost states
+        curDist2Ghosts = [manhattanDistance(curPos, ghostState.getPosition()) for ghostState in
+                      curGhostStates]  # manhattan distances to ghosts in current state
+        newDist2Ghosts = [manhattanDistance(newPos, ghostState.getPosition()) for ghostState in
+                      newGhostStates]  # manhattan distances to ghosts in successor
 
-        # Avoid ghosts that are near, but favor eating them when it seems likely that they'll be reached in time
-        try:
-            f3 = [-1/f1[i] if newScaredTimes[i] < f1[i] else 200*(newScaredTimes[i]-f1[i])/newScaredTimes[i] for i in range(len(newGhostStates))]
-        except ZeroDivisionError:
-            return -9999999
+        # 1-SPACE GHOST HORIZON
+        A = 0   # Number of ghosts distance 1 away from Pacman in current state
+        B = 0   # Number of ghosts Pacman touches after performing action to reach successor
+        C = 0   # Number of ghosts distance 1 away from Pacman after performing action to reach successor
+        for i in range(len(newGhostStates)):
+            if curDist2Ghosts[i] == 1:
+                A += 1
+            if newDist2Ghosts[i] == 0:
+                B+=1
+            if newDist2Ghosts[i] == 1:
+                C+=1
 
-        return f0 - min(f2) + min(f3)
+        # 1-SPACE FOOD HORIZON
+        curFood = currentGameState.getFood()    # current food
+        curDist2Food = [manhattanDistance(curPos, foodPos) for foodPos in curFood.asList()]  # manhattan distances to current food from current pacman position
+        newDist2Food = [manhattanDistance(newPos, foodPos) for foodPos in newFood.asList()]  # manhattan distances to new food from successor pacman position
+        D = 0   # Number of food dots of distance 1 from new state
+        E = point_gain/9    # Normalized points gained from transition to new state
+        for d in newDist2Food:
+            if d == 1:
+                D += 1
 
-        # naive implementation just considers the score of the game in each successor
+        # INF-SPACE HORIZON UPDATE
+        # Add deal breaker: If all 1-Space Horizon values are 0, move towards the nearest food dot
+        F = 0  # boolean for if the new position has a closer nearest dot than the current position
+        if len(curDist2Food) == len(newDist2Food) > 0 and min(curDist2Food) > min(newDist2Food):
+            F = 1
+
+        # Combine values into ghost and point functions
+        Fg = A + B + C
+        Fp = D + 2*E + F
+
+        # Return linear combo of ghost and point functions
+        return -10*Fg + 100*Fp
+
+        # naive implementation just greedily considers the score of the game in each successor
         #return successorGameState.getScore()
 
 def scoreEvaluationFunction(currentGameState):
