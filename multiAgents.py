@@ -233,6 +233,70 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
+
+        # helper function
+        def alphabeta(state, agent_index, depth, alpha, beta):
+            # Performs alpha-beta pruning on a minimax search tree with multiple adversaries
+
+            # actions and successors of current node
+            valid_actions = gameState.getLegalActions(agent_index)
+            successors = [gameState.generateSuccessor(agent_index, a) for a in valid_actions]
+
+            # leaf nodes
+            if depth == 0 or not valid_actions:
+                print("leaf node value:", self.evaluationFunction(state))
+                return self.evaluationFunction(state), None
+
+            # get next agent index
+            next_agent_index = (agent_index + 1) % state.getNumAgents()
+            # decrement depth if cycle through agents is complete
+            depth -= float((next_agent_index + 1) == state.getNumAgents())
+
+            # maximizer (pacman)
+            if agent_index == 0:
+                # instatiate return objects
+                value = float("-inf")
+                action = valid_actions[0]
+
+                for i in range(len(successors)):
+                    # set value to max of successors : value = max(value, alphabeta(s,next_agent_index, depth, alpha, beta))
+                    next_value,_ = alphabeta(successors[i],next_agent_index, depth, alpha, beta)
+                    print("num successors:", len(successors))
+                    print("depth",depth)
+                    if next_value > value:
+                        value = next_value
+                        action = valid_actions[i]
+                    # short circuit for pruning
+                    if value > beta:
+                        break
+                    alpha = max(alpha, value)
+
+
+
+            # minimizer (ghosts)
+            else:
+                value = float("inf")
+                action = valid_actions[0]
+                for i in range(len(successors)):
+                    # set value to min of successors value = min(value, alphabeta(s,next_agent_index, depth, alpha, beta))
+                    next_value, _ = alphabeta(successors[i], next_agent_index, depth, alpha, beta)
+                    if next_value < value:
+                        value = next_value
+                        action = valid_actions[i]
+                    # short circuit for pruning
+                    if value < alpha:
+                        break
+                    beta = min(beta, value)
+
+
+            return value, action
+
+        # outer call
+        val, action = alphabeta(gameState, self.index, self.depth, float("-inf"), float("inf"))
+        return action
+
+
+"""
         # helper functions
         def min_value(gameState, agent_index, depth, alpha):
             nonlocal beta
@@ -298,6 +362,7 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
 
         util.raiseNotDefined()
+"""
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
