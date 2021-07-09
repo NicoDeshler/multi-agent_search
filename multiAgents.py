@@ -233,63 +233,62 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
-
         # helper function
         def alphabeta(state, agent_index, depth, alpha, beta):
             # Performs alpha-beta pruning on a minimax search tree with multiple adversaries
 
-            # actions and successors of current node
-            valid_actions = state.getLegalActions(agent_index)
-            successors = [state.generateSuccessor(agent_index, a) for a in valid_actions]
+
 
             # leaf nodes
-            if depth == 0 or state.isWin() or state.isLose() or not valid_actions:
-                print("leaf node value:", self.evaluationFunction(state))
+            #if depth == 0 or state.isWin() or state.isLose() or not valid_actions:
+            if depth == 0 or state.isWin() or state.isLose():
                 return self.evaluationFunction(state), None
+
+            # actions and successors of current node
+            valid_actions = state.getLegalActions(agent_index)
+            #successors = [state.generateSuccessor(agent_index, a) for a in valid_actions]
 
             # get next agent index
             next_agent_index = (agent_index + 1) % state.getNumAgents()
             # decrement depth if cycle through agents is complete
-            depth -= int((next_agent_index + 1) == state.getNumAgents())
+            if next_agent_index == 0:
+                depth -= 1
 
             # maximizer (pacman)
             if agent_index == 0:
-                # instatiate return objects
+                # instantiate return objects
                 value = float("-inf")
                 action = valid_actions[0]
 
-                for i in range(len(successors)):
+                for i in range(len(valid_actions)):
                     # set value to max of successors : value = max(value, alphabeta(s,next_agent_index, depth, alpha, beta))
-                    next_value,_ = alphabeta(successors[i],next_agent_index, depth, alpha, beta)
-                    
+                    next_value,_ = alphabeta(state.generateSuccessor(agent_index, valid_actions[i]),next_agent_index, depth, alpha, beta)
                     if next_value > value:
                         value = next_value
                         action = valid_actions[i]
-                    """
+
+                    # update alpha
+                    alpha = max(alpha, next_value)
+
                     # short circuit for pruning
-                    if value > beta:
+                    if alpha > beta:
                         break
-                    alpha = max(alpha, value)
-                    """
-
-
 
             # minimizer (ghosts)
             else:
                 value = float("inf")
                 action = valid_actions[0]
-                for i in range(len(successors)):
+                for i in range(len(valid_actions)):
                     # set value to min of successors value = min(value, alphabeta(s,next_agent_index, depth, alpha, beta))
-                    next_value, _ = alphabeta(successors[i], next_agent_index, depth, alpha, beta)
+                    next_value, _ = alphabeta(state.generateSuccessor(agent_index, valid_actions[i]), next_agent_index, depth, alpha, beta)
                     if next_value < value:
                         value = next_value
                         action = valid_actions[i]
-                    """
+                    # update beta
+                    beta = min(beta, next_value)
                     # short circuit for pruning
-                    if value < alpha:
+                    if beta < alpha:
                         break
-                    beta = min(beta, value)
-                    """
 
             return value, action
 
@@ -429,7 +428,89 @@ def betterEvaluationFunction(currentGameState):
     DESCRIPTION: <write something here so we know what you did>
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+
+    def evalfn(currentGameState, action):
+        """
+        Design a better evaluation function here.
+
+        The evaluation function takes in the current and proposed successor
+        GameStates (pacman.py) and returns a number, where higher numbers are better.
+
+        The code below extracts some useful information from the state, like the
+        remaining food (newFood) and Pacman position after moving (newPos).
+        newScaredTimes holds the number of moves that each ghost will remain
+        scared because of Pacman having eaten a power pellet.
+
+        Print out these variables to see what you're getting, then combine them
+        to create a masterful evaluation function.
+        """
+        # Useful information you can extract from a GameState (pacman.py)
+        successorGameState = currentGameState.generatePacmanSuccessor(action)
+        newPos = successorGameState.getPacmanPosition()
+        newFood = successorGameState.getFood()
+        newGhostStates = successorGameState.getGhostStates()
+        newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+
+        "*** YOUR CODE HERE ***"
+        point_gain = successorGameState.getScore() - currentGameState.getScore()  # points gained in successor state compared to current state
+        curPos = currentGameState.getPacmanPosition()  # current pacman position
+        curGhostStates = currentGameState.getGhostStates()  # current ghost states
+        curDist2Ghosts = [manhattanDistance(curPos, ghostState.getPosition()) for ghostState in
+                          curGhostStates]  # manhattan distances to ghosts in current state
+        newDist2Ghosts = [manhattanDistance(newPos, ghostState.getPosition()) for ghostState in
+                          newGhostStates]  # manhattan distances to ghosts in successor
+
+        # 1-SPACE GHOST HORIZON
+        A = 0  # Number of ghosts distance 1 away from Pacman in current state
+        B = 0  # Number of ghosts Pacman touches after performing action to reach successor
+        C = 0  # Number of ghosts distance 1 away from Pacman after performing action to reach successor
+        for i in range(len(newGhostStates)):
+            if curDist2Ghosts[i] == 1:
+                A += 1
+            if newDist2Ghosts[i] == 0:
+                B += 1
+            if newDist2Ghosts[i] == 1:
+                C += 1
+
+        # 1-SPACE FOOD HORIZON
+        curFood = currentGameState.getFood()  # current food
+        curDist2Food = [manhattanDistance(curPos, foodPos) for foodPos in
+                        curFood.asList()]  # manhattan distances to current food from current pacman position
+        newDist2Food = [manhattanDistance(newPos, foodPos) for foodPos in
+                        newFood.asList()]  # manhattan distances to new food from successor pacman position
+        D = 0  # Number of food dots of distance 1 from new state
+        E = point_gain / 9  # Normalized points gained from transition to new state
+        for d in newDist2Food:
+            if d == 1:
+                D += 1
+
+        # INF-SPACE HORIZON UPDATE
+        # Add deal breaker: If all 1-Space Horizon values are 0, move towards the nearest food dot
+        F = 0  # boolean for if the new position has a closer nearest dot than the current position
+        if len(curDist2Food) == len(newDist2Food) > 0 and min(curDist2Food) > min(newDist2Food):
+            F = 1
+
+        # Future functionalities
+        # use gameState.getWalls() to navigate the possibility of being boxed in on 3 sides
+
+        # Combine values into ghost and point functions
+        Fg = A + B + C
+        Fp = D + 2 * E + F
+
+        # Return linear combo of ghost and point functions
+        return -10 * Fg + 100 * Fp
+
+    legalMoves = currentGameState.getLegalActions()
+
+    # Choose one of the best actions
+    scores = [evalfn(currentGameState, action) for action in legalMoves]
+    bestScore = max(scores)
+    bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+    chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
+
+    return legalMoves[chosenIndex]
+
+
 
 # Abbreviation
 better = betterEvaluationFunction
