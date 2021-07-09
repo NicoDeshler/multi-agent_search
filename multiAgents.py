@@ -237,19 +237,16 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         def alphabeta(state, agent_index, depth, alpha, beta):
             # Performs alpha-beta pruning on a minimax search tree with multiple adversaries
 
-
+            # actions of current node
+            valid_actions = state.getLegalActions(agent_index)
 
             # leaf nodes
-            #if depth == 0 or state.isWin() or state.isLose() or not valid_actions:
-            if depth == 0 or state.isWin() or state.isLose():
+            if depth == 0 or state.isWin() or state.isLose() or not valid_actions:
                 return self.evaluationFunction(state), None
-
-            # actions and successors of current node
-            valid_actions = state.getLegalActions(agent_index)
-            #successors = [state.generateSuccessor(agent_index, a) for a in valid_actions]
 
             # get next agent index
             next_agent_index = (agent_index + 1) % state.getNumAgents()
+
             # decrement depth if cycle through agents is complete
             if next_agent_index == 0:
                 depth -= 1
@@ -261,7 +258,7 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                 action = valid_actions[0]
 
                 for i in range(len(valid_actions)):
-                    # set value to max of successors : value = max(value, alphabeta(s,next_agent_index, depth, alpha, beta))
+                    # set value to max of successors
                     next_value,_ = alphabeta(state.generateSuccessor(agent_index, valid_actions[i]),next_agent_index, depth, alpha, beta)
                     if next_value > value:
                         value = next_value
@@ -276,16 +273,20 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
             # minimizer (ghosts)
             else:
+                # instantiate return objects
                 value = float("inf")
                 action = valid_actions[0]
+
                 for i in range(len(valid_actions)):
-                    # set value to min of successors value = min(value, alphabeta(s,next_agent_index, depth, alpha, beta))
+                    # set value to min of successors
                     next_value, _ = alphabeta(state.generateSuccessor(agent_index, valid_actions[i]), next_agent_index, depth, alpha, beta)
                     if next_value < value:
                         value = next_value
                         action = valid_actions[i]
+
                     # update beta
                     beta = min(beta, next_value)
+
                     # short circuit for pruning
                     if beta < alpha:
                         break
@@ -297,74 +298,6 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
         return action
 
-
-"""
-        # helper functions
-        def min_value(gameState, agent_index, depth, alpha):
-            nonlocal beta
-            valid_actions = gameState.getLegalActions(agent_index)
-            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
-            if not valid_actions:
-                return self.evaluationFunction(gameState)
-
-            min_successor_val = float("-inf")
-            # loop through successors so that we can short circuit the search
-            for s in successors:
-                if agent_index == gameState.getNumAgents() - 1:
-                    # end of agent move cycle
-                    if depth == 1:
-                        # check if search is at leaf nodes
-                        v = self.evaluationFunction(s)
-                    else:
-                        # cycle back to pacman to get successor value and decrement depth
-                        v = max_value(s,0,depth - 1, beta)
-                    if v < alpha:
-                        # prune search tree with short circuit
-                        return v
-                else:
-                    # get successor value from next adversary
-                    v = min_value(s,agent_index + 1, depth, alpha)
-
-                beta = min(v,beta)
-                min_successor_val = min(v,min_successor_val)
-
-            return min_successor_val
-
-        def max_value(gameState, agent_index, depth, beta):
-            nonlocal alpha
-            valid_actions = gameState.getLegalActions(agent_index)
-            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
-            if not valid_actions:
-                return self.evaluationFunction(gameState)
-
-            max_successor_val = float("-inf")
-
-            # loop through successors so that we can short circuit the search
-            for s in successors:
-                # get successor value from ghost adversaries
-                v = min_value(s, agent_index + 1, depth, alpha)
-                if v > beta:
-                    # prune search tree with short circuit
-                    return v
-
-                alpha = max(v,alpha)
-                max_successor_val = max(v,max_successor_val)
-            return max_successor_val
-
-
-
-        # Do root node
-        alpha,beta = float("inf"),float("-inf")
-        valid_actions = gameState.getLegalActions(self.index)
-        successors = [gameState.generateSuccessor(self.index, action) for action in valid_actions]
-        successor_vals = [min_value(s, self.index + 1, self.depth,alpha) for s in successors]
-        action_index = successor_vals.index(max(successor_vals))
-
-        return valid_actions[action_index]
-
-
-        util.raiseNotDefined()
-"""
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
