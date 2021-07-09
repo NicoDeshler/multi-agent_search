@@ -187,14 +187,11 @@ class MinimaxAgent(MultiAgentSearchAgent):
         def min_value(gameState, agent_index, depth):
             valid_actions = gameState.getLegalActions(agent_index)
             successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            # if no actions available, just evaluate current state
             if not valid_actions:
                 return self.evaluationFunction(gameState)
-            """
-            if any([s.isLose for s in successors]):
-                return float("-inf")
-            """
 
-            if agent_index == gameState.getNumAgents()-1:
+            if agent_index == gameState.getNumAgents() - 1:
                 # end of agent move cycle
                 if depth == 1:
                     # at leaf nodes
@@ -211,12 +208,10 @@ class MinimaxAgent(MultiAgentSearchAgent):
         def max_value(gameState, agent_index, depth):
             valid_actions = gameState.getLegalActions(agent_index)
             successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            # if no actions available, just evaluate current state
             if not valid_actions:
                 return self.evaluationFunction(gameState)
-            """
-            if any([s.isWin() for s in successors]):
-                return float("inf")
-            """
+            # get successor values from minizers
             successor_vals = [min_value(s, agent_index + 1, depth) for s in successors]
             return max(successor_vals)
 
@@ -226,29 +221,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
         successor_vals = [min_value(s, self.index + 1, self.depth) for s in successors]
         action_index = successor_vals.index(max(successor_vals))
 
-        """
-                if self.index == 0: # agent is PACMAN
-                    successor_vals = [min_value(s,self.index+1,self.depth) for s in successors]
-                    action_index = successor_vals.index(max(successor_vals))
-
-                # BROKEN - NEED TO FIX MAX DEPTH DECREMENTING
-                else: # agent is ghost
-                    if self.index == gameState.getNumAgents() - 1: # ghost agent is last ghost
-                        successor_vals = [max_value(s,0,self.depth - 1) for s in successors]
-                    else:   # ghost agent is not last ghost
-                        successor_vals = [min_value(s, self.index + 1, self.depth) for s in successors]
-                    action_index = successor_vals.index(min(successor_vals))
-
-                return valid_actions[action_index]  
-                """
-
         return valid_actions[action_index]
-
-
-
-
-
-
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
@@ -260,6 +233,70 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
+        # helper functions
+        def min_value(gameState, agent_index, depth, alpha):
+            nonlocal beta
+            valid_actions = gameState.getLegalActions(agent_index)
+            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            if not valid_actions:
+                return self.evaluationFunction(gameState)
+
+            min_successor_val = float("-inf")
+            # loop through successors so that we can short circuit the search
+            for s in successors:
+                if agent_index == gameState.getNumAgents() - 1:
+                    # end of agent move cycle
+                    if depth == 1:
+                        # check if search is at leaf nodes
+                        v = self.evaluationFunction(s)
+                    else:
+                        # cycle back to pacman to get successor value and decrement depth
+                        v = max_value(s,0,depth - 1, beta)
+                    if v < alpha:
+                        # prune search tree with short circuit
+                        return v
+                else:
+                    # get successor value from next adversary
+                    v = min_value(s,agent_index + 1, depth, alpha)
+
+                beta = min(v,beta)
+                min_successor_val = min(v,min_successor_val)
+
+            return min_successor_val
+
+        def max_value(gameState, agent_index, depth, beta):
+            nonlocal alpha
+            valid_actions = gameState.getLegalActions(agent_index)
+            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            if not valid_actions:
+                return self.evaluationFunction(gameState)
+
+            max_successor_val = float("-inf")
+
+            # loop through successors so that we can short circuit the search
+            for s in successors:
+                # get successor value from ghost adversaries
+                v = min_value(s, agent_index + 1, depth, alpha)
+                if v > beta:
+                    # prune search tree with short circuit
+                    return v
+
+                alpha = max(v,alpha)
+                max_successor_val = max(v,max_successor_val)
+            return max_successor_val
+
+
+
+        # Do root node
+        alpha,beta = float("inf"),float("-inf")
+        valid_actions = gameState.getLegalActions(self.index)
+        successors = [gameState.generateSuccessor(self.index, action) for action in valid_actions]
+        successor_vals = [min_value(s, self.index + 1, self.depth,alpha) for s in successors]
+        action_index = successor_vals.index(max(successor_vals))
+
+        return valid_actions[action_index]
+
+
         util.raiseNotDefined()
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
@@ -275,7 +312,46 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
         legal moves.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        # Helper functions
+        def exp_value(gameState, agent_index, depth):
+            valid_actions = gameState.getLegalActions(agent_index)
+            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            # if no actions available, just evaluate current state
+            if not valid_actions:
+                return self.evaluationFunction(gameState)
+
+            if agent_index == gameState.getNumAgents() - 1:
+                # end of agent move cycle
+                if depth == 1:
+                    # at leaf nodes
+                    successor_vals = [self.evaluationFunction(s) for s in successors]
+                else:
+                    # cycle back to pacman agent and decrement the depth
+                    successor_vals = [max_value(s, 0, depth - 1) for s in successors]
+            else:
+                # explore next agent's actions
+                successor_vals = [exp_value(s, agent_index + 1, depth) for s in successors]
+
+            return sum(successor_vals)/len(successor_vals)
+
+        def max_value(gameState, agent_index, depth):
+            valid_actions = gameState.getLegalActions(agent_index)
+            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
+            # if no actions available, just evaluate current state
+            if not valid_actions:
+                return self.evaluationFunction(gameState)
+            # get successor values from chance nodes
+            successor_vals = [exp_value(s, agent_index + 1, depth) for s in successors]
+            return max(successor_vals)
+
+        # Do root node
+        valid_actions = gameState.getLegalActions(self.index)
+        successors = [gameState.generateSuccessor(self.index, action) for action in valid_actions]
+        successor_vals = [exp_value(s, self.index + 1, self.depth) for s in successors]
+        action_index = successor_vals.index(max(successor_vals))
+
+        return valid_actions[action_index]
 
 def betterEvaluationFunction(currentGameState):
     """
