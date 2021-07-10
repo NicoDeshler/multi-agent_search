@@ -312,46 +312,58 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
         legal moves.
         """
         "*** YOUR CODE HERE ***"
+        
+        # expectimax helper
+        def expectimax(state, agent_index, depth):
 
-        # Helper functions
-        def exp_value(gameState, agent_index, depth):
-            valid_actions = gameState.getLegalActions(agent_index)
-            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
-            # if no actions available, just evaluate current state
-            if not valid_actions:
-                return self.evaluationFunction(gameState)
+            # actions of current node
+            valid_actions = state.getLegalActions(agent_index)
 
-            if agent_index == gameState.getNumAgents() - 1:
-                # end of agent move cycle
-                if depth == 1:
-                    # at leaf nodes
-                    successor_vals = [self.evaluationFunction(s) for s in successors]
-                else:
-                    # cycle back to pacman agent and decrement the depth
-                    successor_vals = [max_value(s, 0, depth - 1) for s in successors]
+            # leaf nodes
+            if depth == 0 or state.isWin() or state.isLose() or not valid_actions:
+                return self.evaluationFunction(state), None
+
+            # get next agent index
+            next_agent_index = (agent_index + 1) % state.getNumAgents()
+
+            # decrement depth if cycle through agents is complete
+            if next_agent_index == 0:
+                depth -= 1
+
+            # maximizer (pacman)
+            if agent_index == 0:
+                # instantiate return objects
+                value = float("-inf")
+                action = valid_actions[0]
+
+                for i in range(len(valid_actions)):
+                    # set value to max of successors
+                    next_value, _ = expectimax(state.generateSuccessor(agent_index, valid_actions[i]), next_agent_index,
+                                              depth)
+                    if next_value > value:
+                        value = next_value
+                        action = valid_actions[i]
+
+
+            # chance agent (ghosts)
             else:
-                # explore next agent's actions
-                successor_vals = [exp_value(s, agent_index + 1, depth) for s in successors]
+                # instantiate return objects
+                value = 0
+                action = None
+                for i in range(len(valid_actions)):
+                    # set value to min of successors
+                    next_value, _ = expectimax(state.generateSuccessor(agent_index, valid_actions[i]), next_agent_index,
+                                              depth)
+                    value += next_value
 
-            return sum(successor_vals)/len(successor_vals)
+                if valid_actions:
+                    value = value/len(valid_actions)
 
-        def max_value(gameState, agent_index, depth):
-            valid_actions = gameState.getLegalActions(agent_index)
-            successors = [gameState.generateSuccessor(agent_index, action) for action in valid_actions]
-            # if no actions available, just evaluate current state
-            if not valid_actions:
-                return self.evaluationFunction(gameState)
-            # get successor values from chance nodes
-            successor_vals = [exp_value(s, agent_index + 1, depth) for s in successors]
-            return max(successor_vals)
+            return value, action
 
-        # Do root node
-        valid_actions = gameState.getLegalActions(self.index)
-        successors = [gameState.generateSuccessor(self.index, action) for action in valid_actions]
-        successor_vals = [exp_value(s, self.index + 1, self.depth) for s in successors]
-        action_index = successor_vals.index(max(successor_vals))
-
-        return valid_actions[action_index]
+        # outer call
+        val, action = expectimax(gameState, self.index, self.depth)
+        return action
 
 def betterEvaluationFunction(currentGameState):
     """
@@ -362,88 +374,131 @@ def betterEvaluationFunction(currentGameState):
     """
     "*** YOUR CODE HERE ***"
 
-    def evalfn(currentGameState, action):
+    if currentGameState.isWin():
+        return float("inf")
+    elif currentGameState.isLose():
+        return float("-inf")
+    else:
+        pos = currentGameState.getPacmanPosition()  # current pacman position
+        Food = currentGameState.getFood().asList()
+        FoodDistance = [manhattanDistance(pos, f) for f in Food]
+        numCapsules = len(currentGameState.getCapsules())
+        SumThreshedFoodDist = 0
+        depth = 1 # should be equal to search depth of agent but unfortunately this is not accessible from gameState
+        for f in FoodDistance:
+            if f > depth:
+                SumThreshedFoodDist += f
+
+        F_pos = 0
+        F_neg = - 20 * numCapsules
+
+        if len(FoodDistance) == 1 and FoodDistance[0] == 1:
+            return float("inf")
+
+        if SumThreshedFoodDist > 0:
+            F_pos = currentGameState.getScore() + 1 / SumThreshedFoodDist
+        else:
+            F_pos =  currentGameState.getScore()
+
+        return F_pos + F_neg
+
+        """       
+        E = 0
+        if Food:
+            nearestFood = min([manhattanDistance(pos, f) for f in Food])
+            if nearestFood > depth:
+                E = 1 / nearestFood
+        #return currentGameState.getScore() + E * 0.0001
+        return currentGameState.getScore()
         """
-        Design a better evaluation function here.
+    """
+    if currentGameState.isWin():
+        return float("inf")
+    elif currentGameState.isLose():
+        return float("-inf")
+    else:
+        return currentGameState.getScore()
+        
+        Score = currentGameState.getScore()
+        Food = currentGameState.getFood().asList()
+        Capsules = currentGameState.getCapsules()
+        GhostStates = currentGameState.getGhostStates()
 
-        The evaluation function takes in the current and proposed successor
-        GameStates (pacman.py) and returns a number, where higher numbers are better.
+        pos = currentGameState.getPacmanPosition()  # current pacman position
+        #Dist2Ghosts = [manhattanDistance(Pos, ghostState.getPosition()) for ghostState in GhostStates]  # manhattan distances to ghosts in current state
+        #ScaredTimes = [ghostState.scaredTimer for ghostState in GhostStates]
 
-        The code below extracts some useful information from the state, like the
-        remaining food (newFood) and Pacman position after moving (newPos).
-        newScaredTimes holds the number of moves that each ghost will remain
-        scared because of Pacman having eaten a power pellet.
 
-        Print out these variables to see what you're getting, then combine them
-        to create a masterful evaluation function.
+        A = 0
+        if pos in Capsules:
+            A = 1
+
+        B = len(Food)
+        C = 0
+        D = 0
+        for gs in GhostStates:
+            gs_pos = gs.getPosition
+            gs_t = gs.scaredTimer
+            d2gs = manhattanDistance(pos, gs.getPosition())
+            if gs_t > d2gs:
+                C += gs_t - d2gs
+            else:
+                D += 1/d2gs
+
+        E = 0
+        if Food:
+            nearestFood = min([manhattanDistance(pos,f) for f in Food])
+            if nearestFood > 2:
+                E = nearestFood
+            E = nearestFood
+
+        Fpos = A + C
+        Fneg = B + D + E
+
+        #return Fpos - 100*Fneg
+        return Score + 1000*(1/E)**2
         """
-        # Useful information you can extract from a GameState (pacman.py)
-        successorGameState = currentGameState.generatePacmanSuccessor(action)
-        newPos = successorGameState.getPacmanPosition()
-        newFood = successorGameState.getFood()
-        newGhostStates = successorGameState.getGhostStates()
-        newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+"""
+        # 1-SPACE Horizon terms
+        A = 0  # Number of ghosts distance 1 away from Pacman in current state
 
-        "*** YOUR CODE HERE ***"
-        point_gain = successorGameState.getScore() - currentGameState.getScore()  # points gained in successor state compared to current state
-        curPos = currentGameState.getPacmanPosition()  # current pacman position
-        curGhostStates = currentGameState.getGhostStates()  # current ghost states
-        curDist2Ghosts = [manhattanDistance(curPos, ghostState.getPosition()) for ghostState in
-                          curGhostStates]  # manhattan distances to ghosts in current state
-        newDist2Ghosts = [manhattanDistance(newPos, ghostState.getPosition()) for ghostState in
-                          newGhostStates]  # manhattan distances to ghosts in successor
+        for i in range(len(GhostStates)):
+            if Dist2Ghosts[i] == 1:
+                A += 1
 
         # 1-SPACE GHOST HORIZON
         A = 0  # Number of ghosts distance 1 away from Pacman in current state
-        B = 0  # Number of ghosts Pacman touches after performing action to reach successor
-        C = 0  # Number of ghosts distance 1 away from Pacman after performing action to reach successor
-        for i in range(len(newGhostStates)):
-            if curDist2Ghosts[i] == 1:
+        B = 0  # Number of ghosts Pacman touches in current state
+        for i in range(len(GhostStates)):
+            if Dist2Ghosts[i] == 1:
                 A += 1
-            if newDist2Ghosts[i] == 0:
+            if Dist2Ghosts[i] == 0:
                 B += 1
-            if newDist2Ghosts[i] == 1:
-                C += 1
 
         # 1-SPACE FOOD HORIZON
-        curFood = currentGameState.getFood()  # current food
-        curDist2Food = [manhattanDistance(curPos, foodPos) for foodPos in
-                        curFood.asList()]  # manhattan distances to current food from current pacman position
-        newDist2Food = [manhattanDistance(newPos, foodPos) for foodPos in
-                        newFood.asList()]  # manhattan distances to new food from successor pacman position
+        Dist2Food = [manhattanDistance(pos, foodPos) for foodPos in
+                        Food.asList()]  # manhattan distances to current food from current pacman position
         D = 0  # Number of food dots of distance 1 from new state
-        E = point_gain / 9  # Normalized points gained from transition to new state
-        for d in newDist2Food:
+        #E = currentGameState.getScore()  # pacman score
+        for d in Dist2Food:
             if d == 1:
                 D += 1
 
         # INF-SPACE HORIZON UPDATE
-        # Add deal breaker: If all 1-Space Horizon values are 0, move towards the nearest food dot
+        # Add deal breaker: move towards the nearest food dot
         F = 0  # boolean for if the new position has a closer nearest dot than the current position
-        if len(curDist2Food) == len(newDist2Food) > 0 and min(curDist2Food) > min(newDist2Food):
-            F = 1
-
-        # Future functionalities
-        # use gameState.getWalls() to navigate the possibility of being boxed in on 3 sides
+        if len(Dist2Food) > 0:
+            F = 1/min(Dist2Food)
 
         # Combine values into ghost and point functions
-        Fg = A + B + C
-        Fp = D + 2 * E + F
+        Fg = A + B
+#        Fp = D + 2 * E + F
+        Fp = D + F
 
         # Return linear combo of ghost and point functions
-        return -10 * Fg + 100 * Fp
+        return -10 * Fg + 10 * Fp
 
-    legalMoves = currentGameState.getLegalActions()
-
-    # Choose one of the best actions
-    scores = [evalfn(currentGameState, action) for action in legalMoves]
-    bestScore = max(scores)
-    bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
-    chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
-
-    return legalMoves[chosenIndex]
-
-
+"""
 
 # Abbreviation
 better = betterEvaluationFunction
